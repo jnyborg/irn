@@ -9,6 +9,8 @@ class Net(nn.Module):
         super(Net, self).__init__()
 
         self.n_classes = n_classes
+        self.in_channels = in_channels
+        self.pretrained = pretrained
         self.resnet50 = resnet50.resnet50(pretrained=pretrained, in_channels=in_channels, strides=(2, 2, 2, 1))
 
         self.stage1 = nn.Sequential(self.resnet50.conv1, self.resnet50.bn1, self.resnet50.relu, self.resnet50.maxpool,
@@ -25,7 +27,10 @@ class Net(nn.Module):
     def forward(self, x):
 
         x = self.stage1(x)
-        x = self.stage2(x).detach()
+        if self.pretrained:
+            x = self.stage2(x).detach()
+        else:  # Train from scratch for L8Biome
+            x = self.stage2(x)
 
         x = self.stage3(x)
         x = self.stage4(x)
@@ -37,10 +42,11 @@ class Net(nn.Module):
         return x
 
     def train(self, mode=True):
-        for p in self.resnet50.conv1.parameters():
-            p.requires_grad = False
-        for p in self.resnet50.bn1.parameters():
-            p.requires_grad = False
+        if self.pretrained and self.in_channels == 3:  # Don't retrain stem if pretrained and RGB inputs
+            for p in self.resnet50.conv1.parameters():
+                p.requires_grad = False
+            for p in self.resnet50.bn1.parameters():
+                p.requires_grad = False
 
     def trainable_parameters(self):
         return list(self.backbone.parameters()), list(self.newly_added.parameters())

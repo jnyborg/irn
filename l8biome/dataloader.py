@@ -39,16 +39,19 @@ class L8BiomeDataset(data.Dataset):
         patch_dir, label, name = self.images[index]
         image = tifffile.imread(os.path.join(patch_dir, 'image.tif'))
 
-        out = {'name': name, 'label': torch.tensor(label).float()}
+        out = {'name': name, 'label': torch.tensor(label).long()}
         if self.is_segmentation:
-            # 0 = invalid, 1 = clear, 2 = clouds
-            mask = tifffile.imread(os.path.join(patch_dir, self.mask_file)).astype(np.long)
+            mask = self.load_mask(patch_dir)
             transformed = self.transform(image=image, mask=mask)
             out['img'] = transformed['image']
             out['mask'] = transformed['mask']
         else:
             out['img'] = self.transform(image=image)['image']
         return out
+
+    def load_mask(self, patch_dir):
+        # 0 = invalid, 1 = clear, 2 = clouds
+        return tifffile.imread(os.path.join(patch_dir, self.mask_file)).astype(np.long)
 
     def __len__(self):
         return len(self.images)
@@ -66,11 +69,12 @@ class L8BiomeDataset(data.Dataset):
                 if len(file_names) == 0:
                     continue
 
-                # convert to onehot for compatability
                 label = self.class_to_idx[target]
-                onehot = np.zeros(len(self.classes))
-                onehot[label] = 1
-                images.append((patch_dir, onehot, self._make_name(patch_dir)))
+
+                # convert to onehot for compatability
+                # onehot = np.zeros(len(self.classes))
+                # onehot[label] = 1
+                images.append((patch_dir, label, self._make_name(patch_dir)))
 
         return images
 
@@ -103,7 +107,9 @@ class L8BiomeDatasetMSF(L8BiomeDataset):
             transform = alb.Compose(transform)
             s_img = transform(image=img)['image']
             s_img = imutils.HWC_to_CHW(s_img)
-            ms_img_list.append(np.stack([s_img, np.flip(s_img, -1)], axis=0))  # return original and flipped (?)
+
+            # ResNet50 CAM compute cam as sum of original + flipped image flipped back
+            ms_img_list.append(np.stack([s_img, np.flip(s_img, -1)], axis=0))
         if len(self.scales) == 1:
             ms_img_list = ms_img_list[0]
 
@@ -113,19 +119,19 @@ class L8BiomeDatasetMSF(L8BiomeDataset):
 
 
 if __name__ == '__main__':
-    # l8biome = L8BiomeDataset('/home/jnyborg/git/fixed-point-gan/data/L8Biome')
-    # print('voc12')
-    # voc12 = voc12.dataloader.VOC12ClassificationDataset("voc12/train_aug.txt", 'data/VOC2012',
-    #                                    resize_long=(320, 640), hor_flip=True,
-    #                                    crop_size=512, crop_method="random")
-    #
-    #
-    # print('l8biome')
-    # sample = l8biome[0]
-    # img, label = sample['img'], sample['label']
-    # print(type(img), img.shape, img.dtype)
-    # print(type(label), label.shape, label.dtype)
-    # print(label)
+    l8biome = L8BiomeDataset('/home/jnyborg/git/fixed-point-gan/data/L8Biome')
+    print('voc12')
+    voc12 = voc12.dataloader.VOC12ClassificationDataset("voc12/train_aug.txt", 'data/VOC2012',
+                                       resize_long=(320, 640), hor_flip=True,
+                                       crop_size=512, crop_method="random")
+
+
+    print('l8biome')
+    sample = l8biome[0]
+    img, label = sample['img'], sample['label']
+    print(type(img), img.shape, img.dtype)
+    print(type(label), label.shape, label.dtype)
+    print(label)
     #
     # print('voc12')
     # sample = voc12[0]
