@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import torch.utils.model_zoo as model_zoo
@@ -108,7 +109,7 @@ class ResNet(nn.Module):
         return x
 
 
-def resnet50(pretrained=True, **kwargs):
+def resnet50(pretrained=True, in_channels=3, **kwargs):
 
     model = ResNet(Bottleneck, [3, 4, 6, 3], **kwargs)
     if pretrained:
@@ -116,4 +117,42 @@ def resnet50(pretrained=True, **kwargs):
         state_dict.pop('fc.weight')
         state_dict.pop('fc.bias')
         model.load_state_dict(state_dict)
+
+    if in_channels != 3:
+        patch_first_conv(model, in_channels)
     return model
+
+
+# Thanks to https://github.com/qubvel/segmentation_models.pytorch/blob/master/segmentation_models_pytorch/encoders/_utils.py
+def patch_first_conv(model, in_channels):
+    """Change first convolution layer input channels.
+    In case:
+        in_channels == 1 or in_channels == 2 -> reuse original weights
+        in_channels > 3 -> make random kaiming normal initialization
+    """
+
+    # get first conv
+    for module in model.modules():
+        if isinstance(module, nn.Conv2d):
+            break
+
+    # change input channels for first conv
+    module.in_channels = in_channels
+    weight = module.weight.detach()
+    reset = False
+
+    if in_channels == 1:
+        weight = weight.sum(1, keepdim=True)
+    elif in_channels == 2:
+        weight = weight[:, :2] * (3.0 / 2.0)
+    else:
+        reset = True
+        weight = torch.Tensor(
+            module.out_channels,
+            module.in_channels // module.groups,
+            *module.kernel_size
+        )
+
+    module.weight = nn.parameter.Parameter(weight)
+    if reset:
+        module.reset_parameters()

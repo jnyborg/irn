@@ -16,7 +16,7 @@ def run(args):
 
     train_dataset = voc12.dataloader.VOC12AffinityDataset(args.train_list,
                                                           label_dir=args.ir_label_out_dir,
-                                                          voc12_root=args.voc12_root,
+                                                          voc12_root=args.data_root,
                                                           indices_from=path_index.src_indices,
                                                           indices_to=path_index.dst_indices,
                                                           hor_flip=True,
@@ -85,7 +85,7 @@ def run(args):
             timer.reset_stage()
 
     infer_dataset = voc12.dataloader.VOC12ImageDataset(args.infer_list,
-                                                       voc12_root=args.voc12_root,
+                                                       voc12_root=args.data_root,
                                                        crop_size=args.irn_crop_size,
                                                        crop_method="top_left")
     infer_data_loader = DataLoader(infer_dataset, batch_size=args.irn_batch_size,

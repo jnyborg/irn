@@ -15,7 +15,7 @@ if __name__ == '__main__':
     val_name_list = voc12.dataloader.load_img_name_list(args.val_list)
 
     train_val_name_list = np.concatenate([train_name_list, val_name_list], axis=0)
-    label_list = voc12.dataloader.load_image_label_list_from_xml(train_val_name_list, args.voc12_root)
+    label_list = voc12.dataloader.load_image_label_list_from_xml(train_val_name_list, args.data_root)
 
     total_label = np.zeros(20)
 

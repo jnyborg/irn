@@ -8,7 +8,9 @@ import torch.nn.functional as F
 import importlib
 
 import voc12.dataloader
+import l8biome.dataloader
 from misc import pyutils, torchutils
+from tqdm import tqdm
 
 
 def validate(model, data_loader):
@@ -37,19 +39,22 @@ def validate(model, data_loader):
 
 
 def run(args):
+    if args.dataset == 'l8biome':
+        model = getattr(importlib.import_module(args.cam_network), 'Net')(n_classes=2, in_channels=10)
+        train_dataset = l8biome.dataloader.L8BiomeDataset(args.data_root, 'train')
+        val_dataset = l8biome.dataloader.L8BiomeDataset(args.data_root, 'val')
+    else:
+        model = getattr(importlib.import_module(args.cam_network), 'Net')(n_classes=20, in_channels=3)
+        train_dataset = voc12.dataloader.VOC12ClassificationDataset(args.train_list, voc12_root=args.data_root,
+                                                                    resize_long=(320, 640), hor_flip=True,
+                                                                    crop_size=512, crop_method="random")
 
-    model = getattr(importlib.import_module(args.cam_network), 'Net')()
+        val_dataset = voc12.dataloader.VOC12ClassificationDataset(args.val_list, voc12_root=args.data_root,
+                                                                  crop_size=512)
 
-
-    train_dataset = voc12.dataloader.VOC12ClassificationDataset(args.train_list, voc12_root=args.voc12_root,
-                                                                resize_long=(320, 640), hor_flip=True,
-                                                                crop_size=512, crop_method="random")
+    max_step = (len(train_dataset) // args.cam_batch_size) * args.cam_num_epoches
     train_data_loader = DataLoader(train_dataset, batch_size=args.cam_batch_size,
                                    shuffle=True, num_workers=args.num_workers, pin_memory=True, drop_last=True)
-    max_step = (len(train_dataset) // args.cam_batch_size) * args.cam_num_epoches
-
-    val_dataset = voc12.dataloader.VOC12ClassificationDataset(args.val_list, voc12_root=args.voc12_root,
-                                                              crop_size=512)
     val_data_loader = DataLoader(val_dataset, batch_size=args.cam_batch_size,
                                  shuffle=False, num_workers=args.num_workers, pin_memory=True, drop_last=True)
 
@@ -70,13 +75,25 @@ def run(args):
 
         print('Epoch %d/%d' % (ep+1, args.cam_num_epoches))
 
-        for step, pack in enumerate(train_data_loader):
+        for step, pack in enumerate(tqdm(train_data_loader, f'Epoch {ep}')):
 
             img = pack['img']
             label = pack['label'].cuda(non_blocking=True)
 
             x = model(img)
             loss = F.multilabel_soft_margin_loss(x, label)
+            if loss.isnan():
+
+                print('image')
+                print(img)
+                print('output')
+                print(x)
+                print('label')
+                print(label)
+                print('loss')
+                print(loss)
+                print()
+                exit()
 
             avg_meter.add({'loss1': loss.item()})
 

@@ -6,7 +6,7 @@ from chainercv.evaluations import calc_semantic_segmentation_confusion
 import imageio
 
 def run(args):
-    dataset = VOCSemanticSegmentationDataset(split=args.chainer_eval_set, data_dir=args.voc12_root)
+    dataset = VOCSemanticSegmentationDataset(split=args.chainer_eval_set, data_dir=args.data_root)
     labels = [dataset.get_example_by_keys(i, (1,))[0] for i in range(len(dataset))]
 
     preds = []

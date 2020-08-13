@@ -6,10 +6,11 @@ from net import resnet50
 
 class Net(nn.Module):
 
-    def __init__(self):
+    def __init__(self, n_classes=20, in_channels=3):
         super(Net, self).__init__()
 
-        self.resnet50 = resnet50.resnet50(pretrained=True, strides=(2, 2, 2, 1))
+        self.n_classes = n_classes
+        self.resnet50 = resnet50.resnet50(pretrained=True, in_channels=in_channels, strides=(2, 2, 2, 1))
 
         self.stage1 = nn.Sequential(self.resnet50.conv1, self.resnet50.bn1, self.resnet50.relu, self.resnet50.maxpool,
                                     self.resnet50.layer1)
@@ -17,7 +18,7 @@ class Net(nn.Module):
         self.stage3 = nn.Sequential(self.resnet50.layer3)
         self.stage4 = nn.Sequential(self.resnet50.layer4)
 
-        self.classifier = nn.Conv2d(2048, 20, 1, bias=False)
+        self.classifier = nn.Conv2d(2048, self.n_classes, 1, bias=False)
 
         self.backbone = nn.ModuleList([self.stage1, self.stage2, self.stage3, self.stage4])
         self.newly_added = nn.ModuleList([self.classifier])
@@ -32,7 +33,7 @@ class Net(nn.Module):
 
         x = torchutils.gap2d(x, keepdims=True)
         x = self.classifier(x)
-        x = x.view(-1, 20)
+        x = x.view(-1, self.n_classes)
 
         return x
 
@@ -43,8 +44,7 @@ class Net(nn.Module):
             p.requires_grad = False
 
     def trainable_parameters(self):
-
-        return (list(self.backbone.parameters()), list(self.newly_added.parameters()))
+        return list(self.backbone.parameters()), list(self.newly_added.parameters())
 
 
 class CAM(Net):
