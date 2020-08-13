@@ -9,6 +9,7 @@ import importlib
 import os
 
 import voc12.dataloader
+import l8biome.dataloader
 from misc import torchutils, imutils
 
 cudnn.enabled = True
@@ -32,17 +33,22 @@ def _work(process_id, model, dataset, args):
             strided_size = imutils.get_strided_size(size, 4)
             strided_up_size = imutils.get_strided_up_size(size, 16)
 
+            # Run through each scale of image
             outputs = [model(img[0].cuda(non_blocking=True))
                        for img in pack['img']]
 
+            # Each output is resized to strided_size (lower than original) and summed
             strided_cam = torch.sum(torch.stack(
                 [F.interpolate(torch.unsqueeze(o, 0), strided_size, mode='bilinear', align_corners=False)[0] for o
                  in outputs]), 0)
 
+            # Each output is resized to strided_up_size (which should be orignal size?)
             highres_cam = [F.interpolate(torch.unsqueeze(o, 1), strided_up_size,
                                          mode='bilinear', align_corners=False) for o in outputs]
             highres_cam = torch.sum(torch.stack(highres_cam, 0), 0)[:, 0, :size[0], :size[1]]
 
+            # Pick the cams corresponding to image-level labels
+            # Normalize by max value across H x W dimension for each channel
             valid_cat = torch.nonzero(label)[:, 0]
 
             strided_cam = strided_cam[valid_cat]
@@ -60,14 +66,22 @@ def _work(process_id, model, dataset, args):
 
 
 def run(args):
-    model = getattr(importlib.import_module(args.cam_network), 'CAM')()
-    model.load_state_dict(torch.load(args.cam_weights_name + '.pth'), strict=True)
-    model.eval()
 
     n_gpus = torch.cuda.device_count()
 
-    dataset = voc12.dataloader.VOC12ClassificationDatasetMSF(args.train_list,
-                                                             voc12_root=args.data_root, scales=args.cam_scales)
+    if args.dataset == 'l8biome':
+        model = getattr(importlib.import_module(args.cam_network), 'CAM')(n_classes=2, in_channels=10, pretrained=False)
+        dataset = l8biome.dataloader.L8BiomeDatasetMSF(args.data_root, 'train', scales=args.cam_scales)
+        # Only compute for cloudy images, clear should have empty mask
+        dataset.images = [img for img in dataset.images if 'cloudy' in img[2]]
+    else:
+        model = getattr(importlib.import_module(args.cam_network), 'CAM')(n_classes=20)
+        dataset = voc12.dataloader.VOC12ClassificationDatasetMSF(args.train_list,
+                                                                 voc12_root=args.data_root, scales=args.cam_scales)
+
+    model.load_state_dict(torch.load(args.cam_weights_name + '.pth'), strict=True)
+    model.eval()
+
     dataset = torchutils.split_dataset(dataset, n_gpus)
 
     print('[ ', end='')

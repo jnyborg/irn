@@ -40,7 +40,7 @@ def validate(model, data_loader):
 
 def run(args):
     if args.dataset == 'l8biome':
-        model = getattr(importlib.import_module(args.cam_network), 'Net')(n_classes=2, in_channels=10)
+        model = getattr(importlib.import_module(args.cam_network), 'Net')(n_classes=2, in_channels=10, pretrained=False)
         train_dataset = l8biome.dataloader.L8BiomeDataset(args.data_root, 'train')
         val_dataset = l8biome.dataloader.L8BiomeDataset(args.data_root, 'val')
     else:
@@ -64,6 +64,9 @@ def run(args):
         {'params': param_groups[1], 'lr': 10*args.cam_learning_rate, 'weight_decay': args.cam_weight_decay},
     ], lr=args.cam_learning_rate, weight_decay=args.cam_weight_decay, max_step=max_step)
 
+    print(model)
+    print(f"Number of parameters: {sum([p.numel() for p in model.parameters()]):,}")
+
     model = torch.nn.DataParallel(model).cuda()
     model.train()
 
@@ -75,25 +78,13 @@ def run(args):
 
         print('Epoch %d/%d' % (ep+1, args.cam_num_epoches))
 
-        for step, pack in enumerate(tqdm(train_data_loader, f'Epoch {ep}')):
+        for step, pack in enumerate(tqdm(train_data_loader, f'Epoch {ep+1}/{args.cam_num_epoches}')):
 
             img = pack['img']
             label = pack['label'].cuda(non_blocking=True)
 
             x = model(img)
             loss = F.multilabel_soft_margin_loss(x, label)
-            if loss.isnan():
-
-                print('image')
-                print(img)
-                print('output')
-                print(x)
-                print('label')
-                print(label)
-                print('loss')
-                print(loss)
-                print()
-                exit()
 
             avg_meter.add({'loss1': loss.item()})
 

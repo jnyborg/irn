@@ -1,4 +1,5 @@
-from albumentations import HorizontalFlip, Normalize, Compose
+import albumentations as alb
+import cv2
 from tifffile import tifffile
 from torch.utils import data
 import torch
@@ -7,31 +8,29 @@ import random
 import numpy as np
 from albumentations.pytorch.transforms import ToTensorV2
 
-from voc12.dataloader import VOC12ClassificationDataset
+import voc12.dataloader
+from misc import imutils
 
 
 class L8BiomeDataset(data.Dataset):
-    def __init__(self, root, mode='train', mask_file='mask.tif', keep_ratio=1.0):
+    def __init__(self, root, mode='train', mask_file='mask.tif', transform=None):
         self.root = root = os.path.join(root, mode)
         classes, class_to_idx = self._find_classes(root)
         self.classes = classes
         self.class_to_idx = class_to_idx
         self.images = self._make_dataset(root, class_to_idx)
-        if keep_ratio < 1.0:
-            # Subsample images for supervised training on fake images, and fine-tuning on keep_ratio% real images
-            print('Dataset size before keep_ratio', len(self.images))
-            random.seed(42)  # Ensure we pick the same 1% across experiments
-            random.shuffle(self.images)
-            self.images = self.images[:int(keep_ratio * len(self.images))]
-            print('Dataset size after keep_ratio', len(self.images))
-
         self.num_channels = 10
-        transform = []
-        if mode == 'train':
-            transform.append(HorizontalFlip())
-        transform.append(Normalize(mean=(0.5,) * self.num_channels, std=(0.5,) * self.num_channels, max_pixel_value=2 ** 16 - 1))
-        transform.append(ToTensorV2())
-        self.transform = Compose(transform)
+
+        if transform is None:
+            transform = []
+            if mode == 'train':
+                transform.append(alb.HorizontalFlip())
+            transform.append(
+                alb.Normalize(mean=(0.5,) * self.num_channels, std=(0.5,) * self.num_channels, max_pixel_value=2 ** 16 - 1))
+            transform.append(ToTensorV2())
+            self.transform = alb.Compose(transform)
+        else:
+            self.transform = transform
 
         self.is_segmentation = mask_file is not None
         self.mask_file = mask_file
@@ -50,7 +49,6 @@ class L8BiomeDataset(data.Dataset):
         else:
             out['img'] = self.transform(image=image)['image']
         return out
-
 
     def __len__(self):
         return len(self.images)
@@ -83,25 +81,69 @@ class L8BiomeDataset(data.Dataset):
         return classes, class_to_idx
 
 
+class L8BiomeDatasetMSF(L8BiomeDataset):
+    def __init__(self, root, mode='train', mask_file='mask.tif', scales=(1.0,)):
+        self.scales = scales
+
+        super().__init__(root, mode, mask_file, transform=alb.NoOp())
+        self.scales = scales
+
+    def __getitem__(self, idx):
+        sample = super().__getitem__(idx)
+        ms_img_list = []
+        img = sample['img']
+        for s in self.scales:
+            height, width = img.shape[:2]
+            target_height, target_width = (int(np.round(height * s)), int(np.round(width * s)))
+
+            transform = []
+            if s != 1:
+                transform.append(alb.Resize(target_height, target_width, interpolation=cv2.INTER_CUBIC))
+            transform.append(alb.Normalize((0.5,)*self.num_channels, (0.5,)*self.num_channels, 2**16-1))
+            transform = alb.Compose(transform)
+            s_img = transform(image=img)['image']
+            s_img = imutils.HWC_to_CHW(s_img)
+            ms_img_list.append(np.stack([s_img, np.flip(s_img, -1)], axis=0))  # return original and flipped (?)
+        if len(self.scales) == 1:
+            ms_img_list = ms_img_list[0]
+
+        out = {"name": sample['name'], "img": ms_img_list, "size": (img.shape[0], img.shape[1]),
+               "label": sample['label']}
+        return out
+
+
 if __name__ == '__main__':
-    l8biome = L8BiomeDataset('/home/jnyborg/git/fixed-point-gan/data/L8Biome')
-    print('voc12')
-    voc12 = VOC12ClassificationDataset("voc12/train_aug.txt", 'data/VOC2012',
-                                       resize_long=(320, 640), hor_flip=True,
-                                       crop_size=512, crop_method="random")
+    # l8biome = L8BiomeDataset('/home/jnyborg/git/fixed-point-gan/data/L8Biome')
+    # print('voc12')
+    # voc12 = voc12.dataloader.VOC12ClassificationDataset("voc12/train_aug.txt", 'data/VOC2012',
+    #                                    resize_long=(320, 640), hor_flip=True,
+    #                                    crop_size=512, crop_method="random")
+    #
+    #
+    # print('l8biome')
+    # sample = l8biome[0]
+    # img, label = sample['img'], sample['label']
+    # print(type(img), img.shape, img.dtype)
+    # print(type(label), label.shape, label.dtype)
+    # print(label)
+    #
+    # print('voc12')
+    # sample = voc12[0]
+    # img, label = sample['img'], sample['label']
+    # print(type(img), img.shape, img.dtype)
+    # print(type(label), label.shape, label.dtype)
+    # print(label)
 
-    print('l8biome')
+    # MSF
+    l8biome = L8BiomeDatasetMSF('/home/jnyborg/git/fixed-point-gan/data/L8Biome', scales=(1.0, 0.5, 1.5, 2.0))
+
     sample = l8biome[0]
-    img, label = sample['img'], sample['label']
-    print(type(img), img.shape, img.dtype)
-    print(type(label), label.shape, label.dtype)
-    print(label)
+    print(sample['size'])
+    print([i.shape for i in sample['img']])
 
-    print('voc12')
+
+    voc12 = voc12.dataloader.VOC12ClassificationDatasetMSF("voc12/train_aug.txt", 'data/VOC2012',
+                                                           scales=(1.0, 0.5, 1.5, 2.0))
     sample = voc12[0]
-    img, label = sample['img'], sample['label']
-    print(type(img), img.shape, img.dtype)
-    print(type(label), label.shape, label.dtype)
-    print(label)
-
-
+    print(sample['size'])
+    print([i.shape for i in sample['img']])

@@ -12,6 +12,7 @@ def run(args):
     for id in dataset.ids:
         cam_dict = np.load(os.path.join(args.cam_out_dir, id + '.npy'), allow_pickle=True).item()
         cams = cam_dict['high_res']
+        # Set as background if no class score > args.cam_eval_thres, otherwise the highest scoring class
         cams = np.pad(cams, ((1, 0), (0, 0), (0, 0)), mode='constant', constant_values=args.cam_eval_thres)
         keys = np.pad(cam_dict['keys'] + 1, (1, 0), mode='constant')
         cls_labels = np.argmax(cams, axis=0)

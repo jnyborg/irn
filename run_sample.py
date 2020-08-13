@@ -64,8 +64,8 @@ if __name__ == '__main__':
     parser.add_argument("--ins_seg_out_dir", default="result/ins_seg", type=str)
 
     # Step
-    parser.add_argument("--train_cam_pass", default=True)
-    parser.add_argument("--make_cam_pass", default=False)
+    parser.add_argument("--train_cam_pass", default=False)
+    parser.add_argument("--make_cam_pass", default=True)
     parser.add_argument("--eval_cam_pass", default=False)
     parser.add_argument("--cam_to_ir_label_pass", default=False)
     parser.add_argument("--train_irn_pass", default=False)

@@ -110,7 +110,6 @@ class ResNet(nn.Module):
 
 
 def resnet50(pretrained=True, in_channels=3, **kwargs):
-
     model = ResNet(Bottleneck, [3, 4, 6, 3], **kwargs)
     if pretrained:
         state_dict = model_zoo.load_url(model_urls['resnet50'])

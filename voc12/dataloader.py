@@ -173,7 +173,6 @@ class VOC12ClassificationDataset(VOC12ImageDataset):
         return out
 
 class VOC12ClassificationDatasetMSF(VOC12ClassificationDataset):
-
     def __init__(self, img_name_list_path, voc12_root,
                  img_normal=TorchvisionNormalize(),
                  scales=(1.0,)):
