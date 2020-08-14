@@ -27,7 +27,7 @@ if __name__ == '__main__':
     parser.add_argument("--cam_network", default="net.resnet50_cam", type=str)
     parser.add_argument("--cam_crop_size", default=512, type=int)
     parser.add_argument("--cam_batch_size", default=16, type=int)
-    parser.add_argument("--cam_num_epoches", default=20, type=int)
+    parser.add_argument("--cam_num_epoches", default=15, type=int)
     parser.add_argument("--cam_learning_rate", default=0.1, type=float)
     parser.add_argument("--cam_weight_decay", default=1e-4, type=float)
     parser.add_argument("--cam_eval_thres", default=0.15, type=float)
@@ -64,9 +64,9 @@ if __name__ == '__main__':
     parser.add_argument("--ins_seg_out_dir", default="result/ins_seg", type=str)
 
     # Step
-    parser.add_argument("--train_cam_pass", default=True)
+    parser.add_argument("--train_cam_pass", default=False)
     parser.add_argument("--make_cam_pass", default=False)
-    parser.add_argument("--eval_cam_pass", default=False)
+    parser.add_argument("--eval_cam_pass", default=True)
     parser.add_argument("--cam_to_ir_label_pass", default=False)
     parser.add_argument("--train_irn_pass", default=False)
     parser.add_argument("--make_ins_seg_pass", default=False)

@@ -47,8 +47,8 @@ def accuracy(outputs: torch.Tensor, targets: torch.Tensor):
 def run(args):
     if args.dataset == 'l8biome':
         model = getattr(importlib.import_module(args.cam_network), 'Net')(n_classes=2, in_channels=10, pretrained=False)
-        train_dataset = l8biome.dataloader.L8BiomeDataset(args.data_root, 'train')
-        val_dataset = l8biome.dataloader.L8BiomeDataset(args.data_root, 'val')
+        train_dataset = l8biome.dataloader.L8BiomeDataset(args.data_root, 'train', one_hot_labels=False)
+        val_dataset = l8biome.dataloader.L8BiomeDataset(args.data_root, 'val', one_hot_labels=False)  # we train with crossentropy
         criterion = F.cross_entropy  # clear vs cloudy
     else:
         model = getattr(importlib.import_module(args.cam_network), 'Net')(n_classes=20, in_channels=3)

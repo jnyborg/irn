@@ -7,10 +7,12 @@ from torch.backends import cudnn
 import numpy as np
 import importlib
 import os
+from tqdm import tqdm
 
 import voc12.dataloader
 import l8biome.dataloader
 from misc import torchutils, imutils
+import sys
 
 cudnn.enabled = True
 
@@ -24,7 +26,7 @@ def _work(process_id, model, dataset, args):
 
         model.cuda()
 
-        for iter, pack in enumerate(data_loader):
+        for iter, pack in enumerate(tqdm(data_loader)):
 
             img_name = pack['name'][0]
             label = pack['label'][0]
@@ -49,7 +51,7 @@ def _work(process_id, model, dataset, args):
 
             # Pick the cams corresponding to image-level labels
             # Normalize by max value across H x W dimension for each channel
-            valid_cat = torch.nonzero(label)[:, 0]
+            valid_cat = torch.nonzero(label, as_tuple=False)[:, 0]
 
             strided_cam = strided_cam[valid_cat]
             strided_cam /= F.adaptive_max_pool2d(strided_cam, (1, 1)) + 1e-5
@@ -63,6 +65,7 @@ def _work(process_id, model, dataset, args):
 
             if process_id == n_gpus - 1 and iter % (len(databin) // 20) == 0:
                 print("%d " % ((5*iter+1)//(len(databin) // 20)), end='')
+                sys.stdout.flush()
 
 
 def run(args):

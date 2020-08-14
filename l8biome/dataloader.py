@@ -13,11 +13,12 @@ from misc import imutils
 
 
 class L8BiomeDataset(data.Dataset):
-    def __init__(self, root, mode='train', mask_file='mask.tif', transform=None):
+    def __init__(self, root, mode='train', mask_file='mask.tif', transform=None, one_hot_labels=True):
         self.root = root = os.path.join(root, mode)
         classes, class_to_idx = self._find_classes(root)
         self.classes = classes
         self.class_to_idx = class_to_idx
+        self.one_hot_labels = one_hot_labels
         self.images = self._make_dataset(root, class_to_idx)
         self.num_channels = 10
 
@@ -70,10 +71,11 @@ class L8BiomeDataset(data.Dataset):
                     continue
 
                 label = self.class_to_idx[target]
-
-                # convert to onehot for compatability
-                # onehot = np.zeros(len(self.classes))
-                # onehot[label] = 1
+                if self.one_hot_labels:
+                    # convert to onehot for compatability with existing codebase
+                    onehot = np.zeros(len(self.classes))
+                    onehot[label] = 1
+                    label = onehot
                 images.append((patch_dir, label, self._make_name(patch_dir)))
 
         return images
